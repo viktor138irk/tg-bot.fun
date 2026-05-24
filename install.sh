@@ -394,6 +394,8 @@ cat > /etc/systemd/system/botfactory-api.service << SERVICE
 Description=BotFactory API (FastAPI)
 After=network.target postgresql.service redis-server.service
 Requires=postgresql.service redis-server.service
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=exec
@@ -405,8 +407,8 @@ EnvironmentFile=${APP_DIR}/.env
 ExecStart=${VENV}/bin/uvicorn main:app --host 127.0.0.1 --port ${API_PORT} --workers 1 --loop uvloop --log-level info
 Restart=always
 RestartSec=5
-StartLimitIntervalSec=60
-StartLimitBurst=5
+TimeoutStopSec=20
+KillMode=mixed
 StandardOutput=append:${APP_DIR}/logs/api.log
 StandardError=append:${APP_DIR}/logs/api-error.log
 
@@ -419,6 +421,8 @@ cat > /etc/systemd/system/botfactory-bots.service << SERVICE
 Description=BotFactory Bots Runner (platform + shops)
 After=network-online.target postgresql.service redis-server.service
 Wants=network-online.target postgresql.service redis-server.service
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=exec
@@ -430,8 +434,8 @@ EnvironmentFile=${APP_DIR}/.env
 ExecStart=${VENV}/bin/python shop_bots_runner.py
 Restart=always
 RestartSec=10
-StartLimitIntervalSec=60
-StartLimitBurst=5
+TimeoutStopSec=20
+KillMode=mixed
 StandardOutput=append:${APP_DIR}/logs/bots.log
 StandardError=append:${APP_DIR}/logs/bots-error.log
 

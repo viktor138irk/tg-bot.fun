@@ -1,5 +1,6 @@
 """BotFactory — Platform Admin Bot (системный бот платформы)"""
-import asyncio, logging
+import asyncio, logging, inspect
+from functools import wraps
 from datetime import datetime, timedelta
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.filters import Command
@@ -25,13 +26,20 @@ def is_admin(uid: int) -> bool:
     return uid in settings.admin_ids
 
 def guard(fn):
+    sig = inspect.signature(fn)
+    accepted = set(sig.parameters.keys())
+
+    @wraps(fn)
     async def w(event, *a, **kw):
         uid = event.from_user.id
         if not is_admin(uid):
             t = event.answer if isinstance(event, Message) else event.answer
             await t("⛔ Доступ запрещён.", show_alert=True) if isinstance(event, CallbackQuery) else await t("⛔ Доступ запрещён.")
             return
-        return await fn(event, *a, **kw)
+        # aiogram 3 passes service kwargs (bot, dispatcher, event_from_user, ...).
+        # Wrapped handlers must receive only arguments they declared.
+        clean_kw = {k: v for k, v in kw.items() if k in accepted}
+        return await fn(event, *a, **clean_kw)
     return w
 
 
@@ -686,6 +694,16 @@ async def start_platform_bot():
     storage = RedisStorage.from_url(settings.REDIS_URL)
     bot = Bot(token=settings.PLATFORM_BOT_TOKEN)
     dp  = Dispatcher(storage=storage)
+    # If the previous polling attempt crashed inside the same process, aiogram
+    # may keep the global router marked as attached. Detach it before reusing.
+    try:
+        if getattr(router, "parent_router", None) is not None:
+            try:
+                router.parent_router = None
+            except Exception:
+                setattr(router, "_parent_router", None)
+    except Exception:
+        pass
     dp.include_router(router)
     logger.info("Platform admin bot started")
     try:
