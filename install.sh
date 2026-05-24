@@ -290,6 +290,7 @@ VITE_API_URL=/api
 FENV
 npm install --prefix "$FRONT_DIR" --silent --no-fund --no-audit
 npm run build --prefix "$FRONT_DIR" --silent
+[[ -f "${FRONT_DIR}/dist/index.html" ]] || die "Frontend не собрался: нет ${FRONT_DIR}/dist/index.html"
 log "Frontend собран"
 
 step "Nginx"
@@ -416,8 +417,8 @@ SERVICE
 cat > /etc/systemd/system/botfactory-bots.service << SERVICE
 [Unit]
 Description=BotFactory Bots Runner (platform + shops)
-After=botfactory-api.service
-Wants=botfactory-api.service
+After=network-online.target postgresql.service redis-server.service
+Wants=network-online.target postgresql.service redis-server.service
 
 [Service]
 Type=exec
@@ -469,11 +470,13 @@ log "Fail2ban настроен"
 
 step "Права доступа"
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
-chmod 750 "$APP_DIR"
+chmod 755 "$APP_DIR"
 chmod 600 "$APP_DIR/.env"
 chmod -R 755 "${APP_DIR}/backend" "${APP_DIR}/frontend"
+find "${FRONT_DIR}/dist" -type d -exec chmod 755 {} \; 2>/dev/null || true
+find "${FRONT_DIR}/dist" -type f -exec chmod 644 {} \; 2>/dev/null || true
 chmod -R 770 "${APP_DIR}/logs" "${APP_DIR}/uploads" "${APP_DIR}/backups"
-log "Права выставлены"
+log "Права выставлены: nginx может читать frontend, .env закрыт"
 
 step "Logrotate"
 cat > /etc/logrotate.d/botfactory << LR
